@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useStarkZap } from "./hooks/useStarkZap";
 
 type Action = "send" | "receive" | "swap" | "portfolio";
 
-type Token = {
+type TokenView = {
   symbol: string;
   name: string;
   balance: string;
@@ -12,10 +14,11 @@ type Token = {
   change: string;
 };
 
-const tokens: Token[] = [
+const fallbackTokens: TokenView[] = [
   { symbol: "STRK", name: "Starknet", balance: "1,240", fiat: "$2,480", change: "+3.2%" },
   { symbol: "USDC", name: "USD Coin", balance: "4,200", fiat: "$4,200", change: "+0.2%" },
-  { symbol: "ETH", name: "Ether", balance: "0.82", fiat: "$3,120", change: "-1.1%" },
+  { symbol: "strkBTC", name: "Stark Bitcoin", balance: "0.10", fiat: "$6,500", change: "+1.4%" },
+  { symbol: "wBTC", name: "Wrapped Bitcoin", balance: "0.05", fiat: "$3,250", change: "+0.8%" },
 ];
 
 const stakingPositions = [
@@ -37,15 +40,135 @@ const stakingPositions = [
 
 export default function Home() {
   const [action, setAction] = useState<Action>("send");
-  const [sendToken, setSendToken] = useState(tokens[0].symbol);
+  const [sendToken, setSendToken] = useState(fallbackTokens[0].symbol);
   const [sendAmount, setSendAmount] = useState("100");
   const [recipient, setRecipient] = useState("0x2f1...c2b");
-  const [swapFrom, setSwapFrom] = useState(tokens[0].symbol);
-  const [swapTo, setSwapTo] = useState(tokens[1].symbol);
+  const [swapFrom, setSwapFrom] = useState(fallbackTokens[0].symbol);
+  const [swapTo, setSwapTo] = useState(fallbackTokens[1].symbol);
   const [swapAmount, setSwapAmount] = useState("50");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const { login, logout, authenticated, getAccessToken } = usePrivy();
+  const [accessToken, setAccessToken] = useState("");
+  const [autoConnectRequested, setAutoConnectRequested] = useState(false);
+
+  const {
+    connect,
+    status: walletStatus,
+    address,
+    tokens: zapTokens,
+    error,
+    send,
+    network,
+    feeMode,
+  } = useStarkZap(accessToken);
+
+  useEffect(() => {
+    const fetchToken = async () => {
+      if (!authenticated) {
+        setAccessToken("");
+        return;
+      }
+      try {
+        const token = await getAccessToken();
+        setAccessToken(token ?? "");
+      } catch (err) {
+        console.error("Failed to get Privy access token", err);
+        setAccessToken("");
+      }
+    };
+    fetchToken();
+  }, [authenticated, getAccessToken]);
+
+  useEffect(() => {
+    const maybeConnect = async () => {
+      if (
+        !authenticated ||
+        !accessToken ||
+        accessToken.length < 10 ||
+        walletStatus === "ready" ||
+        walletStatus === "connecting" ||
+        walletStatus === "error"
+      ) {
+        return;
+      }
+      setAutoConnectRequested(true);
+      try {
+        await connect();
+      } catch (err) {
+        console.error("Auto-connect failed", err);
+      } finally {
+        setAutoConnectRequested(false);
+      }
+    };
+    maybeConnect();
+  }, [authenticated, accessToken, walletStatus, connect]);
+
+  const shortAddress = useMemo(() => {
+    if (!address) return "Not connected";
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }, [address]);
+
+  const tokenDisplay = useMemo<TokenView[]>(() => {
+    const allowList = new Set(["strk", "usdc", "strkbtc", "wbtc"]);
+
+    const source = zapTokens && Array.isArray(zapTokens)
+      ? zapTokens.map((t) => ({
+          symbol: t.symbol,
+          name: t.name,
+          balance: "—",
+          fiat: "—",
+          change: "",
+        }))
+      : fallbackTokens;
+
+    const filtered = source.filter((t) => allowList.has(t.symbol.toLowerCase()));
+    return filtered.length ? filtered : fallbackTokens;
+  }, [zapTokens]);
+
+  useEffect(() => {
+    if (tokenDisplay.length && !tokenDisplay.find((t) => t.symbol === sendToken)) {
+      setSendToken(tokenDisplay[0].symbol);
+    }
+    if (tokenDisplay.length && !tokenDisplay.find((t) => t.symbol === swapFrom)) {
+      setSwapFrom(tokenDisplay[0].symbol);
+    }
+    if (tokenDisplay.length > 1 && !tokenDisplay.find((t) => t.symbol === swapTo)) {
+      setSwapTo(tokenDisplay[1].symbol);
+    }
+  }, [tokenDisplay, sendToken, swapFrom, swapTo]);
 
   const totalFiat = useMemo(() => "$9,800.00", []);
-  const activeToken = useMemo(() => tokens.find((t) => t.symbol === sendToken), [sendToken]);
+  const activeToken = useMemo(
+    () => tokenDisplay.find((t) => t.symbol === sendToken),
+    [tokenDisplay, sendToken]
+  );
+
+  const handleSend = async () => {
+    const token = zapTokens?.find((t) => t.symbol === sendToken);
+    if (!token) {
+      setStatusMessage("Connect wallet to load tokens for sending");
+      return;
+    }
+
+    if (recipient.length < 6) {
+      setStatusMessage("Recipient address looks too short");
+      return;
+    }
+
+    try {
+      setIsSending(true);
+      setStatusMessage("Submitting transfer via StarkZap...");
+      const tx = await send(token, sendAmount, recipient);
+      setStatusMessage(`Submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+    } catch (err) {
+      setStatusMessage(
+        err instanceof Error ? `Send failed: ${err.message}` : "Send failed"
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   const renderAction = () => {
     if (action === "send") {
@@ -59,7 +182,7 @@ export default function Home() {
                 value={sendToken}
                 onChange={(e) => setSendToken(e.target.value)}
               >
-                {tokens.map((token) => (
+                {tokenDisplay.map((token) => (
                   <option key={token.symbol} value={token.symbol}>
                     {token.symbol} · {token.name}
                   </option>
@@ -103,12 +226,14 @@ export default function Home() {
             />
             <span className="text-xs text-slate-400">Paste a Starknet address or QR scan</span>
           </label>
-          <button
-            type="button"
-            className="w-full rounded-xl bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-500/25 transition hover:brightness-110"
-          >
-            Review send in StarkZap
-          </button>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={walletStatus !== "ready" || isSending}
+              className="w-full rounded-xl bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {walletStatus === "ready" ? (isSending ? "Sending..." : "Send with StarkZap") : "Connect wallet first"}
+            </button>
         </div>
       );
     }
@@ -135,7 +260,7 @@ export default function Home() {
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="text-sm text-slate-300">Quick deposit tokens</p>
             <div className="mt-3 grid gap-2">
-              {tokens.map((token) => (
+              {tokenDisplay.map((token) => (
                 <div
                   key={token.symbol}
                   className="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-2 text-sm"
@@ -168,7 +293,7 @@ export default function Home() {
                   value={swapFrom}
                   onChange={(e) => setSwapFrom(e.target.value)}
                 >
-                  {tokens.map((token) => (
+                  {tokenDisplay.map((token) => (
                     <option key={token.symbol} value={token.symbol}>
                       {token.symbol}
                     </option>
@@ -182,7 +307,7 @@ export default function Home() {
                   value={swapTo}
                   onChange={(e) => setSwapTo(e.target.value)}
                 >
-                  {tokens
+                  {tokenDisplay
                     .filter((token) => token.symbol !== swapFrom)
                     .map((token) => (
                       <option key={token.symbol} value={token.symbol}>
@@ -222,7 +347,7 @@ export default function Home() {
     return (
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
-          {stakingPositions.map((position) => (
+              {stakingPositions.map((position) => (
             <div
               key={position.validator}
               className="rounded-xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-white/5"
@@ -281,11 +406,25 @@ export default function Home() {
             <h1 className="text-2xl font-semibold text-white">Built on StarkZap</h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs text-slate-200">Network · Sepolia</span>
-            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs text-emerald-200">Fee mode · Sponsored</span>
-            <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:brightness-110" type="button">
-              Connect wallet
+            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs text-slate-200">Network · {network}</span>
+            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs text-emerald-200">Fee mode · {feeMode}</span>
+            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs text-slate-200">{shortAddress}</span>
+            <button
+              className="rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:brightness-110"
+              type="button"
+              onClick={authenticated ? logout : login}
+            >
+              {authenticated ? "Sign out of Privy" : "Login with Privy"}
             </button>
+            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs text-slate-200">
+              {walletStatus === "ready"
+                ? "Wallet ready"
+                : walletStatus === "connecting" || autoConnectRequested
+                  ? "Preparing wallet..."
+                  : accessToken
+                    ? "Awaiting wallet"
+                    : "Sign in first"}
+            </span>
           </div>
         </header>
 
@@ -301,7 +440,7 @@ export default function Home() {
               </div>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              {tokens.map((token) => (
+              {tokenDisplay.map((token) => (
                 <div key={token.symbol} className="rounded-xl bg-slate-900/70 p-4">
                   <div className="flex items-center justify-between text-sm text-slate-300">
                     <p>{token.symbol}</p>
@@ -353,6 +492,12 @@ export default function Home() {
             })}
           </div>
           <div className="mt-6">{renderAction()}</div>
+          {(statusMessage || error) && (
+            <div className="mt-4 rounded-xl border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-200">
+              {statusMessage && <p>{statusMessage}</p>}
+              {error && <p className="text-red-300">{error}</p>}
+            </div>
+          )}
         </section>
       </main>
     </div>
