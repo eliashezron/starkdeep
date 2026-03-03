@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Amount,
   ChainId,
@@ -17,6 +17,8 @@ import {
 export function useStarkZap(accessToken?: string) {
   const [sdk, setSdk] = useState<StarkZap | null>(null);
   const [wallet, setWallet] = useState<any>(null);
+  const [balances, setBalances] = useState<Record<string, string>>({});
+  const [isFetchingBalances, setIsFetchingBalances] = useState(false);
   const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const network = (process.env.NEXT_PUBLIC_STARKZAP_NETWORK as NetworkName) || "mainnet";
@@ -117,10 +119,84 @@ export function useStarkZap(accessToken?: string) {
     const presets = chain
       ? getPresets(chain as ChainId)
       : getPresets(network === "mainnet" ? ChainId.MAINNET : ChainId.SEPOLIA);
-    return Object.values(presets);
+    const overrides: Record<string, Partial<Token>> = {
+      usdc: {
+        address: "0x033068F6539f8e6e6b131e6B2B814e6c34A5224bC66947c47DaB9dFeE93b35fb",
+      },
+      strk: {
+        address: "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D",
+      },
+      wbtc: {
+        address: "0x03Fe2b97C1Fd336E750087D68B9b867997Fd64a2661fF3ca5A7C771641e8e7AC",
+      },
+    };
+
+    return Object.values(presets)
+      .map((token) => {
+        const override = overrides[token.symbol.toLowerCase()];
+        return override ? { ...token, ...override } : token;
+      })
+      .filter((token) => ["strk", "usdc", "wbtc", "strkbtc"].includes(token.symbol.toLowerCase()));
   }, [wallet, network]);
 
-  const address = wallet?.address?.toString?.();
+  const address = useMemo(() => {
+    // StarkZap wallet shapes can expose address in different spots; try them in order.
+    const direct = wallet?.address;
+    if (direct) return direct.toString();
+    const acct = wallet?.account;
+    if (acct?.address) return acct.address.toString();
+    if (typeof wallet?.getAddress === "function") {
+      const got = wallet.getAddress();
+      if (got) return got.toString();
+    }
+    return undefined;
+  }, [wallet]);
+
+  const refreshBalances = useCallback(async () => {
+    if (!wallet || !address || !tokens.length) return;
+
+    // Dev mock wallet cannot fetch real onchain balances; surface placeholders.
+    if (wallet.address === "0xDEV-MOCK-PRIVY") {
+      setBalances(Object.fromEntries(tokens.map((t) => [t.symbol, "—"] as const)));
+      return;
+    }
+
+    setIsFetchingBalances(true);
+    try {
+      if (wallet.ensureReady) {
+        await wallet.ensureReady({ feeMode });
+      }
+
+      const owner = fromAddress(address);
+      if (!owner) {
+        console.warn("StarkZap: wallet address invalid for balanceOf", address);
+        setBalances(Object.fromEntries(tokens.map((t) => [t.symbol, "—"] as const)));
+        return;
+      }
+
+      const entries = await Promise.all(
+        tokens.map(async (token) => {
+          try {
+            const raw = await wallet.erc20(token).balanceOf(owner);
+            const amount = Amount.fromRaw(raw, token).toUnit();
+            return [token.symbol, amount] as const;
+          } catch (err) {
+            console.error(`Failed to load balance for ${token.symbol}`, err);
+            return [token.symbol, "—"] as const;
+          }
+        })
+      );
+      setBalances(Object.fromEntries(entries));
+    } catch (err) {
+      console.error("Failed to load balances", err);
+    } finally {
+      setIsFetchingBalances(false);
+    }
+  }, [wallet, address, tokens, feeMode]);
+
+  useEffect(() => {
+    refreshBalances();
+  }, [refreshBalances]);
 
   const send = useCallback(
     async (token: Token, amount: string, to: string) => {
@@ -150,6 +226,9 @@ export function useStarkZap(accessToken?: string) {
     status,
     error,
     tokens,
+    balances,
+    refreshBalances,
+    isFetchingBalances,
     connect,
     disconnect,
     send,

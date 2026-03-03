@@ -57,6 +57,9 @@ export default function Home() {
     status: walletStatus,
     address,
     tokens: zapTokens,
+    balances,
+    refreshBalances,
+    isFetchingBalances,
     error,
     send,
     network,
@@ -116,7 +119,7 @@ export default function Home() {
       ? zapTokens.map((t) => ({
           symbol: t.symbol,
           name: t.name,
-          balance: "—",
+          balance: balances?.[t.symbol] ?? "—",
           fiat: "—",
           change: "",
         }))
@@ -124,7 +127,7 @@ export default function Home() {
 
     const filtered = source.filter((t) => allowList.has(t.symbol.toLowerCase()));
     return filtered.length ? filtered : fallbackTokens;
-  }, [zapTokens]);
+  }, [zapTokens, balances]);
 
   useEffect(() => {
     if (tokenDisplay.length && !tokenDisplay.find((t) => t.symbol === sendToken)) {
@@ -143,6 +146,20 @@ export default function Home() {
     () => tokenDisplay.find((t) => t.symbol === sendToken),
     [tokenDisplay, sendToken]
   );
+
+  const handleCopyAddress = async () => {
+    if (!address) {
+      setStatusMessage("Connect wallet to copy your address");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(address);
+      setStatusMessage("Address copied to clipboard");
+    } catch (err) {
+      setStatusMessage("Unable to copy address");
+      console.error("Clipboard copy failed", err);
+    }
+  };
 
   const handleSend = async () => {
     const token = zapTokens?.find((t) => t.symbol === sendToken);
@@ -244,12 +261,17 @@ export default function Home() {
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-slate-300">Deposit address</p>
-              <span className="rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200">Sepolia</span>
+              <span className="rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200">{network}</span>
             </div>
-            <p className="mt-3 text-lg font-semibold">0x9a1c...93e2</p>
+            <p className="mt-3 text-lg font-semibold">{shortAddress}</p>
             <p className="mt-1 text-xs text-slate-400">Share this address to receive tokens.</p>
             <div className="mt-4 flex gap-2">
-              <button className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-50 transition hover:border-white/40" type="button">
+              <button
+                className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-50 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                onClick={handleCopyAddress}
+                disabled={!address}
+              >
                 Copy
               </button>
               <button className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-50 transition hover:border-white/40" type="button">
@@ -258,7 +280,17 @@ export default function Home() {
             </div>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <p className="text-sm text-slate-300">Quick deposit tokens</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-slate-300">Quick deposit tokens</p>
+              <button
+                type="button"
+                onClick={refreshBalances}
+                disabled={!address || isFetchingBalances || walletStatus !== "ready"}
+                className="rounded-full border border-white/15 px-3 py-1 text-xs text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isFetchingBalances ? "Syncing..." : "Refresh"}
+              </button>
+            </div>
             <div className="mt-3 grid gap-2">
               {tokenDisplay.map((token) => (
                 <div
@@ -274,7 +306,7 @@ export default function Home() {
               ))}
             </div>
             <p className="mt-4 text-xs text-slate-400">
-              Each deposit will be reflected automatically; hook this to `wallet.balanceOf()` when wiring StarkZap.
+              Balances are fetched live from StarkZap `wallet.balanceOf()`; connect your wallet then refresh if stale.
             </p>
           </div>
         </div>
