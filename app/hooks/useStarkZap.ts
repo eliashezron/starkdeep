@@ -17,6 +17,7 @@ import {
 export function useStarkZap(accessToken?: string) {
   const [sdk, setSdk] = useState<StarkZap | null>(null);
   const [wallet, setWallet] = useState<any>(null);
+  const [address, setAddress] = useState<string | undefined>(undefined);
   const [balances, setBalances] = useState<Record<string, string>>({});
   const [isFetchingBalances, setIsFetchingBalances] = useState(false);
   const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "error">("idle");
@@ -139,21 +140,43 @@ export function useStarkZap(accessToken?: string) {
       .filter((token) => ["strk", "usdc", "wbtc", "strkbtc"].includes(token.symbol.toLowerCase()));
   }, [wallet, network]);
 
-  const address = useMemo(() => {
-    // StarkZap wallet shapes can expose address in different spots; try them in order.
-    const direct = wallet?.address;
-    if (direct) return direct.toString();
-    const acct = wallet?.account;
-    if (acct?.address) return acct.address.toString();
-    if (typeof wallet?.getAddress === "function") {
-      const got = wallet.getAddress();
-      if (got) return got.toString();
+  const resolveAddress = useCallback(async () => {
+    if (!wallet) return undefined;
+
+    const direct = wallet.address;
+    if (typeof direct === "string" || typeof direct === "number" || typeof direct === "bigint") {
+      return direct.toString();
     }
+
+    const acct = wallet.account;
+    if (acct?.address) return acct.address.toString();
+
+    if (typeof wallet.getAddress === "function") {
+      const maybe = wallet.getAddress();
+      const resolved = typeof maybe?.then === "function" ? await maybe : maybe;
+      if (resolved) return resolved.toString();
+    }
+
     return undefined;
   }, [wallet]);
 
+  useEffect(() => {
+    resolveAddress()
+      .then((addr) => {
+        setAddress(addr);
+        // Backfill missing address onto wallet shape so downstream balanceOf calls have it.
+        if (addr && wallet && !wallet.address) {
+          setWallet((prev) => (prev ? { ...prev, address: addr } : prev));
+        }
+      })
+      .catch((err) => {
+        console.warn("StarkZap: failed to resolve address", err);
+        setAddress(undefined);
+      });
+  }, [resolveAddress, wallet]);
+
   const refreshBalances = useCallback(async () => {
-    if (!wallet || !address || !tokens.length) return;
+    if (!wallet || !tokens.length) return;
 
     // Dev mock wallet cannot fetch real onchain balances; surface placeholders.
     if (wallet.address === "0xDEV-MOCK-PRIVY") {
@@ -167,18 +190,27 @@ export function useStarkZap(accessToken?: string) {
         await wallet.ensureReady({ feeMode });
       }
 
-      const owner = fromAddress(address);
-      if (!owner) {
-        console.warn("StarkZap: wallet address invalid for balanceOf", address);
+      const ownerAddress = address || (await resolveAddress());
+      if (!ownerAddress) {
+        console.warn("StarkZap: wallet address unavailable for balanceOf", address);
         setBalances(Object.fromEntries(tokens.map((t) => [t.symbol, "—"] as const)));
         return;
+      }
+
+      if (!wallet.address) {
+        // Ensure address is present for wallet.balanceOf/erc20 paths.
+        setWallet((prev) => (prev ? { ...prev, address: ownerAddress } : prev));
       }
 
       const entries = await Promise.all(
         tokens.map(async (token) => {
           try {
-            const raw = await wallet.erc20(token).balanceOf(owner);
-            const amount = Amount.fromRaw(raw, token).toUnit();
+            const raw = wallet.balanceOf
+              ? await wallet.balanceOf(token)
+              : await wallet.erc20(token).balanceOf({ ...wallet, address: ownerAddress });
+
+            // StarkZap balanceOf may already return Amount; normalize either way.
+            const amount = raw instanceof Amount ? raw.toUnit() : Amount.fromRaw(raw as any, token).toUnit();
             return [token.symbol, amount] as const;
           } catch (err) {
             console.error(`Failed to load balance for ${token.symbol}`, err);
@@ -192,7 +224,7 @@ export function useStarkZap(accessToken?: string) {
     } finally {
       setIsFetchingBalances(false);
     }
-  }, [wallet, address, tokens, feeMode]);
+  }, [wallet, tokens, feeMode, address, resolveAddress]);
 
   useEffect(() => {
     refreshBalances();
