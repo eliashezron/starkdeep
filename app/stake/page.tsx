@@ -51,6 +51,8 @@ export default function StakePage() {
   );
   const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC", "Staked 50 STRK"]);
 
+  const feeModeDisplay = feeMode ?? "user";
+
   useEffect(() => {
     if (address) {
       setActivity([
@@ -197,7 +199,7 @@ export default function StakePage() {
     <WalletShell
       current="stake"
       network={network}
-      feeMode={feeMode}
+      feeMode={feeModeDisplay}
       shortAddress={shortAddress}
       walletStatus={walletStatus}
       autoConnectRequested={autoConnectRequested}

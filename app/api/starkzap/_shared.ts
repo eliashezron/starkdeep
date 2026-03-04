@@ -23,7 +23,8 @@ const paymaster = (() => {
   return nodeUrl ? { nodeUrl, apiKey } : { apiKey };
 })();
 
-const feeMode: "sponsored" | "user" = paymaster ? "sponsored" : "user";
+// Server-side: only pass feeMode when sponsored paymaster is configured; omit for user-paid.
+const feeMode = paymaster ? "sponsored" : undefined;
 
 const sdk = new StarkZap({ network, paymaster });
 

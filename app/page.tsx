@@ -60,6 +60,8 @@ export default function HomePage() {
     autoConnectRequested,
   } = useZapWallet();
 
+  const feeModeDisplay = feeMode ?? "user";
+
   useEffect(() => {
     if (tokenDisplay.length && !tokenDisplay.find((t) => t.symbol === sendToken)) {
       setSendToken(tokenDisplay[0].symbol);
@@ -654,7 +656,7 @@ export default function HomePage() {
       current={action}
       onTabChange={setAction}
       network={network}
-      feeMode={feeMode}
+      feeMode={feeModeDisplay}
       shortAddress={shortAddress}
       walletStatus={walletStatus}
       autoConnectRequested={autoConnectRequested}

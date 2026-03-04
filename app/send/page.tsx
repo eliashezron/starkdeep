@@ -31,6 +31,8 @@ export default function SendPage() {
   const [isSending, setIsSending] = useState(false);
   const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC", "Staked 50 STRK"]);
 
+  const feeModeDisplay = feeMode ?? "user";
+
   useEffect(() => {
     if (tokenDisplay.length && !tokenDisplay.find((t) => t.symbol === sendToken)) {
       setSendToken(tokenDisplay[0].symbol);
@@ -78,7 +80,7 @@ export default function SendPage() {
     <WalletShell
       current="send"
       network={network}
-      feeMode={feeMode}
+      feeMode={feeModeDisplay}
       shortAddress={shortAddress}
       walletStatus={walletStatus}
       autoConnectRequested={autoConnectRequested}

@@ -25,6 +25,8 @@ export default function ReceivePage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC", "Staked 50 STRK"]);
 
+  const feeModeDisplay = feeMode ?? "user";
+
   useEffect(() => {
     if (address) {
       setActivity([`Connected wallet ${address.slice(0, 6)}...${address.slice(-4)}`, "Ready to receive"]);
@@ -51,7 +53,7 @@ export default function ReceivePage() {
     <WalletShell
       current="receive"
       network={network}
-      feeMode={feeMode}
+      feeMode={feeModeDisplay}
       shortAddress={shortAddress}
       walletStatus={walletStatus}
       autoConnectRequested={autoConnectRequested}

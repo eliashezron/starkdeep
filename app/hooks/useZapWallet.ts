@@ -96,21 +96,22 @@ export function useZapWallet() {
           const balanceNum = balanceStr && balanceStr !== "—" ? Number(balanceStr) : 0;
           const price = usdPriceBook[t.symbol.toLowerCase()] ?? 0;
           const numericFiat = Number.isFinite(balanceNum) && price ? balanceNum * price : 0;
-          return {
+          const item: TokenView = {
             symbol: t.symbol,
             name: t.name,
             balance: balanceStr,
             fiat: price ? `$${numericFiat.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "—",
             change: "",
             numericFiat,
-          } satisfies TokenView;
+          };
+          return item;
         })
-      : fallbackTokens;
+      : [...fallbackTokens];
 
     const filtered = source.filter((t) => allowList.has(t.symbol.toLowerCase()));
     return filtered.length
       ? filtered.map((t) => ({ ...t, numericFiat: t.numericFiat ?? parseFiat(t.fiat) }))
-      : fallbackTokens;
+      : [...fallbackTokens];
   }, [tokens, balances]);
 
   const totalFiat = useMemo(() => {

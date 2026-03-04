@@ -10,6 +10,8 @@ import {
   fromAddress,
   getPresets,
   getStakingPreset,
+  type Address,
+  type FeeMode,
   type NetworkName,
   type Token,
   type Pool,
@@ -49,7 +51,7 @@ export function useStarkZap(accessToken?: string) {
     return nodeUrl ? { nodeUrl, headers } : { headers };
   }, []);
 
-  const feeMode = (paymaster ? "sponsored" : "user") as const;
+  const feeMode: FeeMode | undefined = paymaster ? "sponsored" : undefined;
 
   const deployPolicy = useMemo(() => {
     const deployedFlag = (process.env.NEXT_PUBLIC_STARKZAP_ACCOUNT_DEPLOYED || "").trim().toLowerCase();
@@ -162,13 +164,13 @@ export function useStarkZap(accessToken?: string) {
     const presets = getPresets(chainId);
     const overrides: Record<string, Partial<Token>> = {
       usdc: {
-        address: "0x033068F6539f8e6e6b131e6B2B814e6c34A5224bC66947c47DaB9dFeE93b35fb",
+        address: fromAddress("0x033068F6539f8e6e6b131e6B2B814e6c34A5224bC66947c47DaB9dFeE93b35fb") as Address,
       },
       strk: {
-        address: "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D",
+        address: fromAddress("0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D") as Address,
       },
       wbtc: {
-        address: "0x03Fe2b97C1Fd336E750087D68B9b867997Fd64a2661fF3ca5A7C771641e8e7AC",
+        address: fromAddress("0x03Fe2b97C1Fd336E750087D68B9b867997Fd64a2661fF3ca5A7C771641e8e7AC") as Address,
       },
     };
 
@@ -212,7 +214,7 @@ export function useStarkZap(accessToken?: string) {
         setAddress(addr);
         // Backfill missing address onto wallet shape so downstream balanceOf calls have it.
         if (addr && wallet && !wallet.address) {
-          setWallet((prev) => (prev ? { ...prev, address: addr } : prev));
+          setWallet((prev: any) => (prev ? { ...prev, address: addr } : prev));
         }
       })
       .catch((err) => {
@@ -243,7 +245,7 @@ export function useStarkZap(accessToken?: string) {
 
       if (!wallet.address) {
         // Ensure address is present for wallet.balanceOf/erc20 paths.
-        setWallet((prev) => (prev ? { ...prev, address: ownerAddress } : prev));
+        setWallet((prev: any) => (prev ? { ...prev, address: ownerAddress } : prev));
       }
 
       const entries = await Promise.all(
@@ -325,7 +327,8 @@ export function useStarkZap(accessToken?: string) {
         const instance = sdk ?? ensureSdk();
         const entries = await Promise.all(
           clean.map(async (v) => {
-            const pools = await instance.getStakerPools(v);
+            const addr = fromAddress(v);
+            const pools = await instance.getStakerPools(addr);
             return [v, pools] as const;
           })
         );
@@ -363,7 +366,7 @@ export function useStarkZap(accessToken?: string) {
             amount: Amount.parse(amount, token),
           },
         ],
-        { feeMode }
+        feeMode ? { feeMode } : undefined
       );
       return tx;
     },
@@ -392,7 +395,7 @@ export function useStarkZap(accessToken?: string) {
         if (wallet.ensureReady) {
           await wallet.ensureReady({ feeMode });
         }
-        const tx = await staking.stake(wallet, parsed, { feeMode });
+        const tx = await staking.stake(wallet, parsed, feeMode ? { feeMode } : undefined);
         return tx;
       },
       [wallet, stakingPool, feeMode]
@@ -406,7 +409,7 @@ export function useStarkZap(accessToken?: string) {
         if (wallet.ensureReady) {
           await wallet.ensureReady({ feeMode });
         }
-        const tx = await staking.add(wallet, parsed, { feeMode });
+        const tx = await staking.add(wallet, parsed, feeMode ? { feeMode } : undefined);
         return tx;
       },
       [wallet, stakingPool, feeMode]
@@ -420,7 +423,7 @@ export function useStarkZap(accessToken?: string) {
         if (wallet.ensureReady) {
           await wallet.ensureReady({ feeMode });
         }
-        const tx = await staking.exitIntent(wallet, parsed, { feeMode });
+        const tx = await staking.exitIntent(wallet, parsed, feeMode ? { feeMode } : undefined);
         return tx;
       },
       [wallet, stakingPool, feeMode]
@@ -433,7 +436,7 @@ export function useStarkZap(accessToken?: string) {
         if (wallet.ensureReady) {
           await wallet.ensureReady({ feeMode });
         }
-        const tx = await staking.exit(wallet, { feeMode });
+        const tx = await staking.exit(wallet, feeMode ? { feeMode } : undefined);
         return tx;
       },
       [wallet, stakingPool, feeMode]
