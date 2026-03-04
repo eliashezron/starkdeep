@@ -62,7 +62,8 @@ export function useStarkZap(accessToken?: string) {
       await wallet.ensureReady({ feeMode });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err ?? "");
-      if (msg.includes("PRE_CONFIRMED") || msg.includes("REVERTED")) {
+      // Ignore noisy paymaster replays instead of hard-failing balance refreshes.
+      if (msg.includes("PRE_CONFIRMED") || msg.includes("REVERTED") || msg.includes("Tx already sent")) {
         console.warn("StarkZap: ensureReady ignored (pre-confirmed/reverted)", msg);
         return;
       }
