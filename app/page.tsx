@@ -324,7 +324,7 @@ export default function HomePage() {
               type="button"
               onClick={handleSend}
               disabled={walletStatus !== "ready" || isSending}
-              className="flex-1 rounded-xl bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {walletStatus === "ready" ? (isSending ? "Sending..." : "Send with StarkZap") : "Connect wallet first"}
             </button>
@@ -468,7 +468,7 @@ export default function HomePage() {
                       type="button"
                       onClick={handleStake}
                       disabled={walletStatus !== "ready" || isStaking}
-                      className="flex-1 rounded-xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {walletStatus === "ready" ? (isStaking ? "Staking..." : "Stake / Join") : "Connect wallet"}
                     </button>
@@ -476,7 +476,7 @@ export default function HomePage() {
                       type="button"
                       onClick={handleAddStake}
                       disabled={walletStatus !== "ready" || isStaking || !stakingInfo.isMember}
-                      className="flex-1 rounded-xl bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {walletStatus === "ready" ? (isStaking ? "Adding..." : "Add to position") : "Connect wallet"}
                     </button>
@@ -543,7 +543,7 @@ export default function HomePage() {
                     type="button"
                     onClick={handleCompleteExit}
                     disabled={walletStatus !== "ready" || isStaking}
-                    className="w-full rounded-xl bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isStaking ? "Completing..." : "Withdraw (complete exit)"}
                   </button>

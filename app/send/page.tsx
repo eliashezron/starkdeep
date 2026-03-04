@@ -159,7 +159,7 @@ export default function SendPage() {
             type="button"
             onClick={handleSend}
             disabled={walletStatus !== "ready" || isSending}
-            className="flex-1 rounded-xl bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {walletStatus === "ready" ? (isSending ? "Sending..." : "Send with StarkZap") : "Connect wallet first"}
           </button>
