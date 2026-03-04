@@ -23,7 +23,7 @@ const paymaster = (() => {
   return nodeUrl ? { nodeUrl, apiKey } : { apiKey };
 })();
 
-const feeMode = (paymaster ? "sponsored" : "user") as const;
+const feeMode: "sponsored" | "user" = paymaster ? "sponsored" : "user";
 
 const sdk = new StarkZap({ network, paymaster });
 
