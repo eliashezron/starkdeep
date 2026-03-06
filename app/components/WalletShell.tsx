@@ -88,9 +88,6 @@ export function WalletShell({
                 <p className="text-sm text-slate-300">Total portfolio value</p>
                 <p className="text-3xl font-semibold text-white">{totalFiat}</p>
               </div>
-              <div className="rounded-full bg-emerald-400/15 px-4 py-2 text-xs font-semibold text-emerald-200">
-                Live via StarkZap soon
-              </div>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               {tokenDisplay.map((token) => (
@@ -115,7 +112,6 @@ export function WalletShell({
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-xs text-slate-400">Hook to tx history once StarkZap exposes a tx feed; currently showing placeholder items.</p>
           </div>
         </section>
 

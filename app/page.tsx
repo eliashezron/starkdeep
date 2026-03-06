@@ -410,6 +410,9 @@ export default function HomePage() {
     }
 
     if (action === "stake") {
+      const stakeBalanceLabel = stakeAction === "stake" ? selectedStakeBalance : positionDisplay(stakePosition?.staked);
+      const stakeMaxValue = stakeAction === "stake" ? selectedStakeBalance || "0" : positionDisplay(stakePosition?.staked) || "0";
+
       return (
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
@@ -427,7 +430,6 @@ export default function HomePage() {
                   </option>
                 ))}
               </select>
-              <span className="text-xs text-slate-400">Uses StarkZap validator presets for {network}</span>
             </label>
             <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
               <span className="text-sm text-slate-300">Pool / Token</span>
@@ -443,7 +445,6 @@ export default function HomePage() {
                   </option>
                 ))}
               </select>
-              <span className="text-xs text-slate-400">Shows pools from getStakerPools()</span>
             </label>
           </div>
 
@@ -471,7 +472,7 @@ export default function HomePage() {
                 <label className="flex flex-col gap-2">
                   <div className="flex items-center justify-between text-sm text-slate-300">
                     <span>Amount</span>
-                    <span>Balance: {selectedStakeBalance}</span>
+                    <span>Balance: {stakeBalanceLabel}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -483,13 +484,12 @@ export default function HomePage() {
                     <button
                       type="button"
                       className="rounded-full border border-white/15 px-3 py-2 text-xs text-slate-100 transition hover:border-white/40"
-                      onClick={() => setStakeAmount(selectedStakeBalance || "0")}
-                      disabled={!selectedStakeToken}
+                      onClick={() => setStakeAmount(stakeMaxValue)}
+                      disabled={!selectedStakeToken && stakeAction === "stake"}
                     >
                       Max
                     </button>
                   </div>
-                  <p className="text-xs text-slate-400">Staking actions use wallet.stake() or exitPoolIntent() under the hood.</p>
                 </label>
               )}
 
@@ -548,7 +548,6 @@ export default function HomePage() {
                 </div>
               </div>
               <p className="text-xs text-slate-400">
-                Delegation data comes from wallet.getPoolPosition(); withdraw requires an active exit intent and may have a cooldown.
               </p>
             </div>
           </div>
