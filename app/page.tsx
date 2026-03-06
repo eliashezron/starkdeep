@@ -13,7 +13,7 @@ type PoolPosition = { staked?: any; rewards?: any; total?: any; unpooling?: any;
 export default function HomePage() {
   const [action, setAction] = useState<Action>("send");
   const [sendToken, setSendToken] = useState("STRK");
-  const [sendAmount, setSendAmount] = useState("100");
+  const [sendAmount, setSendAmount] = useState("");
   const [recipient, setRecipient] = useState("0x2f1...c2b");
 
   // Staking state
@@ -21,7 +21,7 @@ export default function HomePage() {
   const [selectedValidatorKey, setSelectedValidatorKey] = useState<string>("");
   const [pools, setPools] = useState<StakerPool[]>([]);
   const [selectedPool, setSelectedPool] = useState<string>("");
-  const [stakeAmount, setStakeAmount] = useState("100");
+  const [stakeAmount, setStakeAmount] = useState("");
   const [stakeStatus, setStakeStatus] = useState<string | null>(null);
   const [isLoadingPools, setIsLoadingPools] = useState(false);
   const [isLoadingPosition, setIsLoadingPosition] = useState(false);
@@ -30,7 +30,6 @@ export default function HomePage() {
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC"]);
 
   const {
     sdk,
@@ -80,16 +79,6 @@ export default function HomePage() {
       setSendToken(tokenDisplay[0].symbol);
     }
   }, [tokenDisplay, sendToken]);
-
-  useEffect(() => {
-    if (address) {
-      const base: string[] = [`Connected wallet ${address.slice(0, 6)}...${address.slice(-4)}`];
-      base.push(action === "send" ? "Ready to send" : action === "receive" ? "Ready to receive" : "Ready to stake");
-      setActivity(base);
-    } else {
-      setActivity(["Connect your wallet to load activity"]);
-    }
-  }, [address, action]);
 
   const activeToken = useMemo(() => tokenDisplay.find((t) => t.symbol === sendToken), [tokenDisplay, sendToken]);
 
@@ -153,6 +142,15 @@ export default function HomePage() {
     }
   }, [action, selectedPool, loadStakePosition]);
 
+  useEffect(() => {
+    if (walletStatus === "ready") {
+      refreshBalances();
+      if (action === "stake" && selectedPool) {
+        loadStakePosition(selectedPool);
+      }
+    }
+  }, [walletStatus, action, selectedPool, refreshBalances, loadStakePosition]);
+
   const handleStake = async () => {
     if (!wallet || walletStatus !== "ready") {
       setStakeStatus("Connect your wallet to stake");
@@ -167,7 +165,7 @@ export default function HomePage() {
       setIsSubmittingStake(true);
       setStakeStatus("Submitting stake via StarkZap...");
       const tx = await wallet.stake(selectedPool, Amount.parse(stakeAmount || "0", selectedStakeToken));
-      setStakeStatus(`Stake submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      setStakeStatus(tx.explorerUrl ?? "pending");
       await refreshBalances();
       await loadStakePosition(selectedPool);
     } catch (err) {
@@ -191,7 +189,7 @@ export default function HomePage() {
       setIsSubmittingStake(true);
       setStakeStatus("Requesting exit (cooldown starts)...");
       const tx = await wallet.exitPoolIntent(selectedPool, Amount.parse(stakeAmount || "0", selectedStakeToken));
-      setStakeStatus(`Exit intent submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      setStakeStatus(tx.explorerUrl ?? "pending");
       await loadStakePosition(selectedPool);
     } catch (err) {
       setStakeStatus(err instanceof Error ? `Unstake failed: ${err.message}` : "Unstake failed");
@@ -225,7 +223,7 @@ export default function HomePage() {
       setIsSubmittingStake(true);
       setStakeStatus("Finalizing withdrawal...");
       const tx = await wallet.exitPool(selectedPool);
-      setStakeStatus(`Withdrawal submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      setStakeStatus(tx.explorerUrl ?? "pending");
       await refreshBalances();
       await loadStakePosition(selectedPool);
     } catch (err) {
@@ -267,7 +265,11 @@ export default function HomePage() {
       setIsSending(true);
       setStatusMessage("Submitting transfer via StarkZap...");
       const tx = await send(token, sendAmount, recipient);
-      setStatusMessage(`Submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      setStatusMessage(tx.explorerUrl ?? "pending");
+      await refreshBalances();
+      if (action === "stake" && selectedPool) {
+        await loadStakePosition(selectedPool);
+      }
     } catch (err) {
       setStatusMessage(err instanceof Error ? `Send failed: ${err.message}` : "Send failed");
     } finally {
@@ -281,9 +283,9 @@ export default function HomePage() {
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-              <span className="text-sm text-slate-300">From</span>
+              <span className="text-sm text-gray-300">From</span>
               <select
-                className="rounded-lg bg-slate-900/70 p-3 text-sm text-slate-50 outline-none"
+                className="rounded-lg bg-gray-800 p-3 text-sm text-gray-50 outline-none"
                 value={sendToken}
                 onChange={(e) => setSendToken(e.target.value)}
               >
@@ -293,17 +295,17 @@ export default function HomePage() {
                   </option>
                 ))}
               </select>
-              <span className="text-xs text-slate-400">Balance {activeToken?.balance ?? "0"}</span>
+              <span className="text-xs text-gray-400">Balance {activeToken?.balance ?? "0"}</span>
             </label>
             <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-              <span className="text-sm text-slate-300">Amount</span>
+              <span className="text-sm text-gray-300">Amount</span>
               <input
-                className="rounded-lg bg-slate-900/70 p-3 text-lg font-semibold text-slate-50 outline-none"
+                className="rounded-lg bg-gray-800 p-3 text-lg font-semibold text-gray-50 outline-none"
                 value={sendAmount}
                 onChange={(e) => setSendAmount(e.target.value)}
                 placeholder="0.00"
               />
-              <div className="flex gap-2 text-xs text-slate-400">
+              <div className="flex gap-2 text-xs text-gray-400">
                 {[
                   { label: "25%", value: "0.25" },
                   { label: "50%", value: "0.5" },
@@ -312,7 +314,7 @@ export default function HomePage() {
                   <button
                     key={chip.label}
                     type="button"
-                    className="rounded-full border border-white/10 px-3 py-1 text-slate-200 transition hover:border-white/40 hover:text-white"
+                    className="rounded-full border border-white/10 px-3 py-1 text-gray-200 transition hover:border-white/40 hover:text-gray-100"
                     onClick={() => setSendAmount(chip.value)}
                   >
                     {chip.label}
@@ -322,21 +324,21 @@ export default function HomePage() {
             </label>
           </div>
           <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-            <span className="text-sm text-slate-300">Recipient</span>
+            <span className="text-sm text-gray-300">Recipient</span>
             <input
-              className="rounded-lg bg-slate-900/70 p-3 text-base text-slate-50 outline-none"
+              className="rounded-lg bg-gray-800 p-3 text-base text-gray-50 outline-none"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="0x..."
             />
-            <span className="text-xs text-slate-400">Paste a Starknet address or QR scan</span>
+            <span className="text-xs text-gray-400">Paste a Starknet address or QR scan</span>
           </label>
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={refreshBalances}
               disabled={!address || walletStatus !== "ready"}
-              className="rounded-full border border-white/15 px-3 py-2 text-xs text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-white/15 px-3 py-2 text-xs text-gray-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Refresh balances
             </button>
@@ -344,7 +346,7 @@ export default function HomePage() {
               type="button"
               onClick={handleSend}
               disabled={walletStatus !== "ready" || isSending}
-              className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-gray-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {walletStatus === "ready" ? (isSending ? "Sending..." : "Send with StarkZap") : "Connect wallet first"}
             </button>
@@ -358,33 +360,33 @@ export default function HomePage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-300">Deposit address</p>
-              <span className="rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200">{network}</span>
+              <p className="text-sm text-gray-300">Deposit address</p>
+              <span className="rounded-full bg-gray-900/70 px-3 py-1 text-xs text-gray-200">{network}</span>
             </div>
             <p className="mt-3 text-lg font-semibold">{shortAddress}</p>
-            <p className="mt-1 text-xs text-slate-400">Share this address to receive tokens.</p>
+            <p className="mt-1 text-xs text-gray-400">Share this address to receive tokens.</p>
             <div className="mt-4 flex gap-2">
               <button
-                className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-50 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-50 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 onClick={handleCopyAddress}
                 disabled={!address}
               >
                 Copy
               </button>
-              <button className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-50 transition hover:border-white/40" type="button">
+              <button className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-50 transition hover:border-white/40" type="button">
                 Share
               </button>
             </div>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-slate-300">Quick deposit tokens</p>
+              <p className="text-sm text-gray-300">Quick deposit tokens</p>
               <button
                 type="button"
                 onClick={refreshBalances}
                 disabled={!address || isFetchingBalances || walletStatus !== "ready"}
-                className="rounded-full border border-white/15 px-3 py-1 text-xs text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full border border-white/15 px-3 py-1 text-xs text-gray-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isFetchingBalances ? "Syncing..." : "Refresh"}
               </button>
@@ -393,19 +395,16 @@ export default function HomePage() {
               {tokenDisplay.map((token) => (
                 <div
                   key={token.symbol}
-                  className="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded-lg bg-gray-800 px-3 py-2 text-sm"
                 >
                   <div>
-                    <p className="text-xs text-slate-400">{token.name}</p>
-                    <p className="text-sm text-slate-200">{token.symbol}</p>
+                    <p className="text-xs text-gray-400">{token.name}</p>
+                    <p className="text-sm text-gray-200">{token.symbol}</p>
                   </div>
-                  <p className="text-xs text-slate-300">Balance {token.balance}</p>
+                  <p className="text-xs text-gray-300">Balance {token.balance}</p>
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-xs text-slate-400">
-              Balances are fetched live from StarkZap wallet.balanceOf(); connect your wallet then refresh if stale.
-            </p>
           </div>
         </div>
       );
@@ -419,9 +418,9 @@ export default function HomePage() {
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-              <span className="text-sm text-slate-300">Validator</span>
+              <span className="text-sm text-gray-300">Validator</span>
               <select
-                className="rounded-lg bg-slate-900/70 p-3 text-sm text-slate-50 outline-none"
+                className="rounded-lg bg-gray-800 p-3 text-sm text-gray-50 outline-none"
                 value={selectedValidator?.stakerAddress ?? ""}
                 onChange={(e) => setSelectedValidatorKey(e.target.value)}
                 disabled={!validators.length || isLoadingPools}
@@ -434,9 +433,9 @@ export default function HomePage() {
               </select>
             </label>
             <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-              <span className="text-sm text-slate-300">Pool / Token</span>
+              <span className="text-sm text-gray-300">Pool / Token</span>
               <select
-                className="rounded-lg bg-slate-900/70 p-3 text-sm text-slate-50 outline-none"
+                className="rounded-lg bg-gray-800 p-3 text-sm text-gray-50 outline-none"
                 value={selectedPool}
                 onChange={(e) => setSelectedPool(e.target.value)}
                 disabled={!pools.length || isLoadingPools}
@@ -459,7 +458,7 @@ export default function HomePage() {
                   type="button"
                   onClick={() => setStakeAction(key)}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    isActive ? "bg-white text-slate-900 shadow-md shadow-white/30" : "bg-slate-900/70 text-slate-200 hover:bg-slate-900"
+                    isActive ? "bg-white text-gray-900 shadow-md shadow-white/30" : "bg-gray-900/70 text-gray-200 hover:bg-gray-900"
                   }`}
                 >
                   {key.charAt(0).toUpperCase() + key.slice(1)}
@@ -472,20 +471,20 @@ export default function HomePage() {
             <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-5">
               {stakeAction !== "withdraw" && (
                 <label className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-sm text-slate-300">
+                  <div className="flex items-center justify-between text-sm text-gray-300">
                     <span>Amount</span>
                     <span>Balance: {stakeBalanceLabel}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
-                      className="flex-1 rounded-lg bg-slate-900/70 p-3 text-lg font-semibold text-slate-50 outline-none"
+                      className="flex-1 rounded-lg bg-gray-800 p-3 text-lg font-semibold text-gray-50 outline-none"
                       value={stakeAmount}
                       onChange={(e) => setStakeAmount(e.target.value)}
                       placeholder="0.00"
                     />
                     <button
                       type="button"
-                      className="rounded-full border border-white/15 px-3 py-2 text-xs text-slate-100 transition hover:border-white/40"
+                      className="rounded-full border border-white/15 px-3 py-2 text-xs text-gray-100 transition hover:border-white/40"
                       onClick={() => setStakeAmount(stakeMaxValue)}
                       disabled={!selectedStakeToken && stakeAction === "stake"}
                     >
@@ -496,9 +495,9 @@ export default function HomePage() {
               )}
 
               {stakeAction === "withdraw" && (
-                <div className="rounded-lg border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-200">
+                <div className="rounded-lg border border-white/10 bg-gray-900/60 p-4 text-sm text-gray-200">
                   <p>Pending withdrawal: {positionDisplay(stakePosition?.unpooling)}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-gray-400">
                     {stakePosition?.unpoolTime ? `Ready after: ${new Date(stakePosition.unpoolTime).toLocaleString()}` : "No exit intent active."}
                   </p>
                 </div>
@@ -509,7 +508,7 @@ export default function HomePage() {
                   type="button"
                   onClick={refreshBalances}
                   disabled={!address || walletStatus !== "ready"}
-                  className="rounded-full border border-white/15 px-3 py-2 text-xs text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full border border-white/15 px-3 py-2 text-xs text-gray-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Refresh balances
                 </button>
@@ -517,7 +516,7 @@ export default function HomePage() {
                   type="button"
                   onClick={stakePrimary.onClick}
                   disabled={walletStatus !== "ready" || isSubmittingStake || isLoadingPools}
-                  className="flex-1 rounded-xl bg-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-400/25 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-gray-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {walletStatus === "ready" ? (isSubmittingStake ? stakeInProgressLabel : stakePrimary.label) : "Connect wallet first"}
                 </button>
@@ -526,30 +525,30 @@ export default function HomePage() {
 
             <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-300">Position</p>
-                <span className="rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200">
+                <p className="text-sm text-gray-300">Position</p>
+                <span className="rounded-full bg-gray-900/70 px-3 py-1 text-xs text-gray-200">
                   {isLoadingPosition ? "Syncing" : walletStatus === "ready" ? "Live" : "Connect"}
                 </span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-slate-900/70 p-3">
-                  <p className="text-xs text-slate-400">Staked</p>
-                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.staked)}</p>
+                <div className="rounded-lg bg-gray-900/70 p-3">
+                  <p className="text-xs text-gray-400">Staked</p>
+                  <p className="text-lg font-semibold text-gray-100">{positionDisplay(stakePosition?.staked)}</p>
                 </div>
-                <div className="rounded-lg bg-slate-900/70 p-3">
-                  <p className="text-xs text-slate-400">Rewards</p>
-                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.rewards)}</p>
+                <div className="rounded-lg bg-gray-900/70 p-3">
+                  <p className="text-xs text-gray-400">Rewards</p>
+                  <p className="text-lg font-semibold text-gray-100">{positionDisplay(stakePosition?.rewards)}</p>
                 </div>
-                <div className="rounded-lg bg-slate-900/70 p-3">
-                  <p className="text-xs text-slate-400">Unpooling</p>
-                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.unpooling)}</p>
+                <div className="rounded-lg bg-gray-900/70 p-3">
+                  <p className="text-xs text-gray-400">Unpooling</p>
+                  <p className="text-lg font-semibold text-gray-100">{positionDisplay(stakePosition?.unpooling)}</p>
                 </div>
-                <div className="rounded-lg bg-slate-900/70 p-3">
-                  <p className="text-xs text-slate-400">Total</p>
-                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.total)}</p>
+                <div className="rounded-lg bg-gray-900/70 p-3">
+                  <p className="text-xs text-gray-400">Total</p>
+                  <p className="text-lg font-semibold text-gray-100">{positionDisplay(stakePosition?.total)}</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-gray-400">
               </p>
             </div>
           </div>
@@ -574,7 +573,6 @@ export default function HomePage() {
       logout={logout}
       tokenDisplay={tokenDisplay}
       totalFiat={totalFiat}
-      activity={activity}
       statusMessage={action === "stake" ? stakeStatus : statusMessage}
       error={error}
     >

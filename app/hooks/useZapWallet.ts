@@ -13,7 +13,7 @@ const fallbackTokens = [
 ] as const;
 
 const usdPriceBook: Record<string, number> = {
-  strk: 2.0,
+  strk: 0.04,
   usdc: 1.0,
   strkbtc: 65000,
   wbtc: 65000,

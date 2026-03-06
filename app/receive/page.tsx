@@ -69,33 +69,33 @@ export default function ReceivePage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-300">Deposit address</p>
-            <span className="rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200">{network}</span>
+            <p className="text-sm text-gray-300">Deposit address</p>
+            <span className="rounded-full bg-gray-900/70 px-3 py-1 text-xs text-gray-200">{network}</span>
           </div>
           <p className="mt-3 text-lg font-semibold">{shortAddress}</p>
-          <p className="mt-1 text-xs text-slate-400">Share this address to receive tokens.</p>
+          <p className="mt-1 text-xs text-gray-400">Share this address to receive tokens.</p>
           <div className="mt-4 flex gap-2">
             <button
-              className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-50 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-50 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
               onClick={handleCopyAddress}
               disabled={!address}
             >
               Copy
             </button>
-            <button className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-50 transition hover:border-white/40" type="button">
+            <button className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-50 transition hover:border-white/40" type="button">
               Share
             </button>
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-slate-300">Quick deposit tokens</p>
+            <p className="text-sm text-gray-300">Quick deposit tokens</p>
             <button
               type="button"
               onClick={refreshBalances}
               disabled={!address || isFetchingBalances || walletStatus !== "ready"}
-              className="rounded-full border border-white/15 px-3 py-1 text-xs text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-white/15 px-3 py-1 text-xs text-gray-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isFetchingBalances ? "Syncing..." : "Refresh"}
             </button>
@@ -104,17 +104,17 @@ export default function ReceivePage() {
             {tokenDisplay.map((token) => (
               <div
                 key={token.symbol}
-                className="flex items-center justify-between rounded-lg bg-slate-900/70 px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-lg bg-gray-900/70 px-3 py-2 text-sm"
               >
                 <div>
-                  <p className="text-xs text-slate-400">{token.name}</p>
-                  <p className="text-sm text-slate-200">{token.symbol}</p>
+                  <p className="text-xs text-gray-400">{token.name}</p>
+                  <p className="text-sm text-gray-200">{token.symbol}</p>
                 </div>
-                <p className="text-xs text-slate-300">Balance {token.balance}</p>
+                <p className="text-xs text-gray-300">Balance {token.balance}</p>
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs text-slate-400">
+          <p className="mt-4 text-xs text-gray-400">
             Balances are fetched live from StarkZap wallet.balanceOf(); connect your wallet then refresh if stale.
           </p>
         </div>

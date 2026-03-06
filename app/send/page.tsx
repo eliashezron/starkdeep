@@ -25,7 +25,7 @@ export default function SendPage() {
   } = useZapWallet();
 
   const [sendToken, setSendToken] = useState<string>(tokenDisplay[0]?.symbol ?? "STRK");
-  const [sendAmount, setSendAmount] = useState("100");
+  const [sendAmount, setSendAmount] = useState("");
   const [recipient, setRecipient] = useState("0x2f1...c2b");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -68,7 +68,7 @@ export default function SendPage() {
       setIsSending(true);
       setStatusMessage("Submitting transfer via StarkZap...");
       const tx = await send(token, sendAmount, recipient);
-      setStatusMessage(`Submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      setStatusMessage(tx.explorerUrl ?? "pending");
     } catch (err) {
       setStatusMessage(err instanceof Error ? `Send failed: ${err.message}` : "Send failed");
     } finally {
@@ -96,9 +96,9 @@ export default function SendPage() {
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-            <span className="text-sm text-slate-300">From</span>
+            <span className="text-sm text-gray-300">From</span>
             <select
-              className="rounded-lg bg-slate-900/70 p-3 text-sm text-slate-50 outline-none"
+              className="rounded-lg bg-gray-800 p-3 text-sm text-gray-50 outline-none"
               value={sendToken}
               onChange={(e) => setSendToken(e.target.value)}
             >
@@ -108,17 +108,17 @@ export default function SendPage() {
                 </option>
               ))}
             </select>
-            <span className="text-xs text-slate-400">Balance {activeToken?.balance ?? "0"}</span>
+            <span className="text-xs text-gray-400">Balance {activeToken?.balance ?? "0"}</span>
           </label>
           <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-            <span className="text-sm text-slate-300">Amount</span>
+            <span className="text-sm text-gray-300">Amount</span>
             <input
-              className="rounded-lg bg-slate-900/70 p-3 text-lg font-semibold text-slate-50 outline-none"
+              className="rounded-lg bg-gray-800 p-3 text-lg font-semibold text-gray-50 outline-none"
               value={sendAmount}
               onChange={(e) => setSendAmount(e.target.value)}
               placeholder="0.00"
             />
-            <div className="flex gap-2 text-xs text-slate-400">
+            <div className="flex gap-2 text-xs text-gray-400">
               {[
                 { label: "25%", value: "0.25" },
                 { label: "50%", value: "0.5" },
@@ -127,7 +127,7 @@ export default function SendPage() {
                 <button
                   key={chip.label}
                   type="button"
-                  className="rounded-full border border-white/10 px-3 py-1 text-slate-200 transition hover:border-white/40 hover:text-white"
+                  className="rounded-full border border-white/10 px-3 py-1 text-gray-200 transition hover:border-white/40 hover:text-gray-50"
                   onClick={() => setSendAmount(chip.value)}
                 >
                   {chip.label}
@@ -137,21 +137,21 @@ export default function SendPage() {
           </label>
         </div>
         <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-          <span className="text-sm text-slate-300">Recipient</span>
+          <span className="text-sm text-gray-300">Recipient</span>
           <input
-            className="rounded-lg bg-slate-900/70 p-3 text-base text-slate-50 outline-none"
+            className="rounded-lg bg-gray-800 p-3 text-base text-gray-50 outline-none"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
             placeholder="0x..."
           />
-          <span className="text-xs text-slate-400">Paste a Starknet address or QR scan</span>
+          <span className="text-xs text-gray-400">Paste a Starknet address or QR scan</span>
         </label>
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={refreshBalances}
             disabled={!address || walletStatus !== "ready"}
-            className="rounded-full border border-white/15 px-3 py-2 text-xs text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full border border-white/15 px-3 py-2 text-xs text-gray-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Refresh balances
           </button>
@@ -159,7 +159,7 @@ export default function SendPage() {
             type="button"
             onClick={handleSend}
             disabled={walletStatus !== "ready" || isSending}
-            className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-base font-semibold text-gray-900 shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {walletStatus === "ready" ? (isSending ? "Sending..." : "Send with StarkZap") : "Connect wallet first"}
           </button>
