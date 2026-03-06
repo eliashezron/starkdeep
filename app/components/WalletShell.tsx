@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import type { TokenView } from "../hooks/useZapWallet";
 
 export type WalletShellProps = {
-  current: "send" | "receive" | "stake";
-  onTabChange?: (key: "send" | "receive" | "stake") => void;
+  current: "send" | "receive";
+  onTabChange?: (key: "send" | "receive") => void;
   network: string;
   feeMode: string;
   shortAddress: string;
@@ -26,7 +26,6 @@ export type WalletShellProps = {
 const tabs: { key: WalletShellProps["current"]; label: string; href: string }[] = [
   { key: "send", label: "Send", href: "/send" },
   { key: "receive", label: "Receive", href: "/receive" },
-  { key: "stake", label: "Stake", href: "/stake" },
 ];
 
 export function WalletShell({

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "StarkDeep Wallet | StarkZap",
   description:
-    "Starknet wallet UI powered by StarkZap with send, receive, and staking views",
+    "Starknet wallet UI powered by StarkZap with send and receive views",
 };
 
 export default function RootLayout({

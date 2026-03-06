@@ -23,7 +23,7 @@ export default function ReceivePage() {
   } = useZapWallet();
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC", "Staked 50 STRK"]);
+  const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC"]);
 
   const feeModeDisplay = feeMode ?? "user";
 

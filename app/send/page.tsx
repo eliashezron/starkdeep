@@ -29,7 +29,7 @@ export default function SendPage() {
   const [recipient, setRecipient] = useState("0x2f1...c2b");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC", "Staked 50 STRK"]);
+  const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC"]);
 
   const feeModeDisplay = feeMode ?? "user";
 

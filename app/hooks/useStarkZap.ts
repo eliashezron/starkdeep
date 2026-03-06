@@ -1,21 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Amount,
-  ChainId,
-  OnboardStrategy,
-  StarkZap,
-  accountPresets,
-  fromAddress,
-  getPresets,
-  getStakingPreset,
-  type Address,
-  type FeeMode,
-  type NetworkName,
-  type Token,
-  type Pool,
-} from "starkzap";
+import { Amount, ChainId, OnboardStrategy, StarkZap, accountPresets, fromAddress, getPresets, type Address, type FeeMode, type NetworkName, type Token } from "starkzap";
 
 // Client-side Privy onboarding per StarkZap docs.
 export function useStarkZap(accessToken?: string) {
@@ -23,19 +9,6 @@ export function useStarkZap(accessToken?: string) {
   const [wallet, setWallet] = useState<any>(null);
   const [address, setAddress] = useState<string | undefined>(undefined);
   const [balances, setBalances] = useState<Record<string, string>>({});
-  const [stakingInfo, setStakingInfo] = useState<{
-    staked: string;
-    rewards: string;
-    commission: number | null;
-    unpoolTime?: Date | null;
-    isMember: boolean;
-  }>({ staked: "—", rewards: "—", commission: null, unpoolTime: null, isMember: false });
-  const [isFetchingStaking, setIsFetchingStaking] = useState(false);
-  const [stakeableTokens, setStakeableTokens] = useState<Token[]>([]);
-  const [isFetchingStakeable, setIsFetchingStakeable] = useState(false);
-  const [validatorPools, setValidatorPools] = useState<Record<string, Pool[]>>({});
-  const [isFetchingPools, setIsFetchingPools] = useState(false);
-  const [poolsError, setPoolsError] = useState<string | null>(null);
   const [isFetchingBalances, setIsFetchingBalances] = useState(false);
   const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +45,6 @@ export function useStarkZap(accessToken?: string) {
       throw err;
     }
   }, [wallet, feeMode]);
-
-  const stakingPoolOverride = (process.env.NEXT_PUBLIC_STARKZAP_STAKING_POOL || "").trim();
 
   const chainId = useMemo(() => {
     const chain = wallet?.getChainId?.();
@@ -182,12 +153,6 @@ export function useStarkZap(accessToken?: string) {
       .filter((token) => ["strk", "usdc", "wbtc", "strkbtc"].includes(token.symbol.toLowerCase()));
   }, [wallet, network, chainId]);
 
-  const stakingPool = useMemo(() => {
-    if (stakingPoolOverride) return stakingPoolOverride;
-    const preset = getStakingPreset(chainId);
-    return preset?.contract?.toString();
-  }, [chainId, stakingPoolOverride]);
-
   const resolveAddress = useCallback(async () => {
     if (!wallet) return undefined;
 
@@ -272,85 +237,9 @@ export function useStarkZap(accessToken?: string) {
     }
   }, [wallet, tokens, safeEnsureReady, address, resolveAddress]);
 
-  const refreshStakingInfo = useCallback(async () => {
-    if (!wallet || !stakingPool) return;
-    setIsFetchingStaking(true);
-    try {
-      await safeEnsureReady();
-      const staking = await wallet.staking(stakingPool);
-      const commission = await staking.getCommission().catch(() => null);
-      const position = await staking.getPosition(wallet).catch(() => null);
-      if (!position) {
-        setStakingInfo({ staked: "0", rewards: "0", commission, unpoolTime: null, isMember: false });
-        return;
-      }
-      setStakingInfo({
-        staked: position.staked.toUnit(),
-        rewards: position.rewards.toUnit(),
-        commission,
-        unpoolTime: position.unpoolTime ?? null,
-        isMember: true,
-      });
-    } catch (err) {
-      console.warn("StarkZap: failed to load staking info", err);
-      setStakingInfo({ staked: "—", rewards: "—", commission: null, unpoolTime: null, isMember: false });
-    } finally {
-      setIsFetchingStaking(false);
-    }
-  }, [wallet, stakingPool, feeMode]);
-
-  const loadStakeableTokens = useCallback(async () => {
-    setIsFetchingStakeable(true);
-    try {
-      const instance = sdk ?? ensureSdk();
-      const list = await instance.stakingTokens();
-      setStakeableTokens(list);
-      return list;
-    } catch (err) {
-      console.warn("StarkZap: failed to load stakeable tokens", err);
-      throw err;
-    } finally {
-      setIsFetchingStakeable(false);
-    }
-  }, [sdk, ensureSdk]);
-
-  const loadValidatorPools = useCallback(
-    async (validators: string[]) => {
-      const clean = validators.map((v) => v.trim()).filter(Boolean);
-      if (!clean.length) {
-        setPoolsError("No validator addresses provided");
-        return {} as Record<string, Pool[]>;
-      }
-      setIsFetchingPools(true);
-      setPoolsError(null);
-      try {
-        const instance = sdk ?? ensureSdk();
-        const entries = await Promise.all(
-          clean.map(async (v) => {
-            const addr = fromAddress(v);
-            const pools = await instance.getStakerPools(addr);
-            return [v, pools] as const;
-          })
-        );
-        const mapped = Object.fromEntries(entries) as Record<string, Pool[]>;
-        setValidatorPools((prev) => ({ ...prev, ...mapped }));
-        return mapped;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to load validator pools";
-        setPoolsError(msg);
-        console.warn("StarkZap: getStakerPools failed", err);
-        throw err;
-      } finally {
-        setIsFetchingPools(false);
-      }
-    },
-    [sdk, ensureSdk]
-  );
-
   useEffect(() => {
     refreshBalances();
-    refreshStakingInfo();
-  }, [refreshBalances, refreshStakingInfo]);
+  }, [refreshBalances]);
 
   const send = useCallback(
     async (token: Token, amount: string, to: string) => {
@@ -386,74 +275,7 @@ export function useStarkZap(accessToken?: string) {
     connect,
     disconnect,
     send,
-    stake: useCallback(
-      async (token: Token, amount: string) => {
-        if (!wallet) throw new Error("Connect wallet first");
-        if (!stakingPool) throw new Error("Staking pool not configured");
-        const staking = await wallet.staking(stakingPool);
-        const parsed = Amount.parse(amount, token);
-        if (wallet.ensureReady) {
-          await wallet.ensureReady({ feeMode });
-        }
-        const tx = await staking.stake(wallet, parsed, feeMode ? { feeMode } : undefined);
-        return tx;
-      },
-      [wallet, stakingPool, feeMode]
-    ),
-    addStake: useCallback(
-      async (token: Token, amount: string) => {
-        if (!wallet) throw new Error("Connect wallet first");
-        if (!stakingPool) throw new Error("Staking pool not configured");
-        const staking = await wallet.staking(stakingPool);
-        const parsed = Amount.parse(amount, token);
-        if (wallet.ensureReady) {
-          await wallet.ensureReady({ feeMode });
-        }
-        const tx = await staking.add(wallet, parsed, feeMode ? { feeMode } : undefined);
-        return tx;
-      },
-      [wallet, stakingPool, feeMode]
-    ),
-    exitStake: useCallback(
-      async (amount: string, token?: Token) => {
-        if (!wallet) throw new Error("Connect wallet first");
-        if (!stakingPool) throw new Error("Staking pool not configured");
-        const staking = await wallet.staking(stakingPool);
-        const parsed = token ? Amount.parse(amount, token) : Amount.fromRaw(BigInt(amount), { symbol: "STRK", decimals: 18 } as Token);
-        if (wallet.ensureReady) {
-          await wallet.ensureReady({ feeMode });
-        }
-        const tx = await staking.exitIntent(wallet, parsed, feeMode ? { feeMode } : undefined);
-        return tx;
-      },
-      [wallet, stakingPool, feeMode]
-    ),
-    completeExit: useCallback(
-      async () => {
-        if (!wallet) throw new Error("Connect wallet first");
-        if (!stakingPool) throw new Error("Staking pool not configured");
-        const staking = await wallet.staking(stakingPool);
-        if (wallet.ensureReady) {
-          await wallet.ensureReady({ feeMode });
-        }
-        const tx = await staking.exit(wallet, feeMode ? { feeMode } : undefined);
-        return tx;
-      },
-      [wallet, stakingPool, feeMode]
-    ),
-    refreshStakingInfo,
-    stakingInfo,
-    isFetchingStaking,
-    stakeableTokens,
-    loadStakeableTokens,
-    isFetchingStakeable,
-    validatorPools,
-    loadValidatorPools,
-    isFetchingPools,
-    poolsError,
     network,
     feeMode,
-    stakingPool,
-    stakingPoolOverride,
   };
 }
