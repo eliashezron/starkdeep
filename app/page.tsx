@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Amount, mainnetValidators, sepoliaValidators, type Token } from "starkzap";
+import { Amount, fromAddress, mainnetValidators, sepoliaValidators, type Token } from "starkzap";
 import { WalletShell } from "./components/WalletShell";
 import { useZapWallet } from "./hooks/useZapWallet";
 
@@ -100,7 +100,8 @@ export default function HomePage() {
     if (!sdk || !selectedValidator?.stakerAddress) return;
     setIsLoadingPools(true);
     try {
-      const result = await sdk.getStakerPools(selectedValidator.stakerAddress);
+      const validatorAddr = fromAddress(selectedValidator.stakerAddress);
+      const result = await sdk.getStakerPools(validatorAddr);
       setPools(result);
       const resolvedPool = result.find((p) => p.poolContract === selectedPool) ?? result[0];
       setSelectedPool(resolvedPool?.poolContract ?? "");

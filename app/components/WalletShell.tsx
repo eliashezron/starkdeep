@@ -16,6 +16,7 @@ export type WalletShellProps = {
   logout: () => void;
   tokenDisplay: TokenView[];
   totalFiat: string;
+  activity?: string[];
   statusMessage?: string | null;
   error?: string | null;
   children: ReactNode;
@@ -40,6 +41,7 @@ export function WalletShell({
   logout,
   tokenDisplay,
   totalFiat,
+  activity,
   statusMessage,
   error,
   children,
@@ -128,7 +130,7 @@ export function WalletShell({
 
         <section className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-neutral-500/10">
           <div className="flex flex-wrap items-center gap-3">
-            {tabs.map(({ key, label, href }) => {
+            {tabs.map(({ key, label }) => {
               const isActive = current === key;
               return (
                 <button
