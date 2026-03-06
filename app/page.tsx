@@ -241,6 +241,8 @@ export default function HomePage() {
       ? { label: "Unstake", onClick: handleUnstake }
       : { label: "Withdraw", onClick: handleWithdraw };
 
+  const stakeInProgressLabel = stakeAction === "stake" ? "Staking..." : stakeAction === "unstake" ? "Unstaking..." : "Withdrawing...";
+
   const positionDisplay = (value?: any) => {
     if (!value) return "0";
     if (typeof value === "string") return value;
@@ -517,7 +519,7 @@ export default function HomePage() {
                   disabled={walletStatus !== "ready" || isSubmittingStake || isLoadingPools}
                   className="flex-1 rounded-xl bg-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-400/25 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {walletStatus === "ready" ? (isSubmittingStake ? `${stakePrimary.label}ing...` : stakePrimary.label) : "Connect wallet first"}
+                  {walletStatus === "ready" ? (isSubmittingStake ? stakeInProgressLabel : stakePrimary.label) : "Connect wallet first"}
                 </button>
               </div>
             </div>
