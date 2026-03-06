@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Amount, mainnetValidators, sepoliaValidators, type Token } from "starkzap";
 import { WalletShell } from "./components/WalletShell";
 import { useZapWallet } from "./hooks/useZapWallet";
 
-type Action = "send" | "receive";
+type Action = "send" | "receive" | "stake";
+type ValidatorPreset = { name: string; stakerAddress: string; website?: string };
+type StakerPool = { poolContract: string; token: Token; amount: any };
+type PoolPosition = { staked?: any; rewards?: any; total?: any; unpooling?: any; unpoolTime?: Date | string };
 
 export default function HomePage() {
   const [action, setAction] = useState<Action>("send");
@@ -12,11 +16,26 @@ export default function HomePage() {
   const [sendAmount, setSendAmount] = useState("100");
   const [recipient, setRecipient] = useState("0x2f1...c2b");
 
+  // Staking state
+  const [stakeAction, setStakeAction] = useState<"stake" | "unstake" | "withdraw">("stake");
+  const [selectedValidatorKey, setSelectedValidatorKey] = useState<string>("");
+  const [pools, setPools] = useState<StakerPool[]>([]);
+  const [selectedPool, setSelectedPool] = useState<string>("");
+  const [stakeAmount, setStakeAmount] = useState("100");
+  const [stakeStatus, setStakeStatus] = useState<string | null>(null);
+  const [isLoadingPools, setIsLoadingPools] = useState(false);
+  const [isLoadingPosition, setIsLoadingPosition] = useState(false);
+  const [isSubmittingStake, setIsSubmittingStake] = useState(false);
+  const [stakePosition, setStakePosition] = useState<PoolPosition | null>(null);
+
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC"]);
 
   const {
+    sdk,
+    wallet,
+    balances,
     tokens,
     refreshBalances,
     isFetchingBalances,
@@ -37,6 +56,25 @@ export default function HomePage() {
 
   const feeModeDisplay = feeMode ?? "user";
 
+  const validators = useMemo<ValidatorPreset[]>(() => {
+    const set = network === "mainnet" ? mainnetValidators : sepoliaValidators;
+    return Object.values(set ?? {}) as ValidatorPreset[];
+  }, [network]);
+
+  useEffect(() => {
+    if (validators.length && !selectedValidatorKey) {
+      setSelectedValidatorKey(validators[0].stakerAddress);
+    }
+  }, [validators, selectedValidatorKey]);
+
+  const selectedValidator = useMemo(() => {
+    return validators.find((v) => v.stakerAddress === selectedValidatorKey) ?? validators[0];
+  }, [validators, selectedValidatorKey]);
+
+  const selectedPoolObj = useMemo(() => pools.find((pool) => pool.poolContract === selectedPool), [pools, selectedPool]);
+  const selectedStakeToken = selectedPoolObj?.token;
+  const selectedStakeBalance = selectedStakeToken ? balances?.[selectedStakeToken.symbol] ?? "0" : "0";
+
   useEffect(() => {
     if (tokenDisplay.length && !tokenDisplay.find((t) => t.symbol === sendToken)) {
       setSendToken(tokenDisplay[0].symbol);
@@ -46,7 +84,7 @@ export default function HomePage() {
   useEffect(() => {
     if (address) {
       const base: string[] = [`Connected wallet ${address.slice(0, 6)}...${address.slice(-4)}`];
-      base.push(action === "send" ? "Ready to send" : "Ready to receive");
+      base.push(action === "send" ? "Ready to send" : action === "receive" ? "Ready to receive" : "Ready to stake");
       setActivity(base);
     } else {
       setActivity(["Connect your wallet to load activity"]);
@@ -67,6 +105,148 @@ export default function HomePage() {
       setStatusMessage("Unable to copy address");
       console.error("Clipboard copy failed", err);
     }
+  };
+
+  const loadPools = useCallback(async () => {
+    if (!sdk || !selectedValidator?.stakerAddress) return;
+    setIsLoadingPools(true);
+    try {
+      const result = await sdk.getStakerPools(selectedValidator.stakerAddress);
+      setPools(result);
+      const resolvedPool = result.find((p) => p.poolContract === selectedPool) ?? result[0];
+      setSelectedPool(resolvedPool?.poolContract ?? "");
+    } catch (err) {
+      console.error("Failed to load pools", err);
+      setStakeStatus(err instanceof Error ? err.message : "Unable to load pools");
+    } finally {
+      setIsLoadingPools(false);
+    }
+  }, [sdk, selectedValidator, selectedPool]);
+
+  const loadStakePosition = useCallback(
+    async (poolAddress?: string) => {
+      const target = poolAddress ?? selectedPool;
+      if (!wallet || !target) return;
+      setIsLoadingPosition(true);
+      try {
+        const pos = await wallet.getPoolPosition(target);
+        setStakePosition(pos ?? null);
+      } catch (err) {
+        console.error("Failed to load position", err);
+        setStakePosition(null);
+      } finally {
+        setIsLoadingPosition(false);
+      }
+    },
+    [wallet, selectedPool]
+  );
+
+  useEffect(() => {
+    if (action === "stake") {
+      loadPools();
+    }
+  }, [action, loadPools]);
+
+  useEffect(() => {
+    if (action === "stake" && selectedPool) {
+      loadStakePosition(selectedPool);
+    }
+  }, [action, selectedPool, loadStakePosition]);
+
+  const handleStake = async () => {
+    if (!wallet || walletStatus !== "ready") {
+      setStakeStatus("Connect your wallet to stake");
+      return;
+    }
+    if (!selectedStakeToken || !selectedPool) {
+      setStakeStatus("Select a pool to stake into");
+      return;
+    }
+
+    try {
+      setIsSubmittingStake(true);
+      setStakeStatus("Submitting stake via StarkZap...");
+      const tx = await wallet.stake(selectedPool, Amount.parse(stakeAmount || "0", selectedStakeToken));
+      setStakeStatus(`Stake submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      await refreshBalances();
+      await loadStakePosition(selectedPool);
+    } catch (err) {
+      setStakeStatus(err instanceof Error ? `Stake failed: ${err.message}` : "Stake failed");
+    } finally {
+      setIsSubmittingStake(false);
+    }
+  };
+
+  const handleUnstake = async () => {
+    if (!wallet || walletStatus !== "ready") {
+      setStakeStatus("Connect your wallet to unstake");
+      return;
+    }
+    if (!selectedStakeToken || !selectedPool) {
+      setStakeStatus("Select a pool to unstake from");
+      return;
+    }
+
+    try {
+      setIsSubmittingStake(true);
+      setStakeStatus("Requesting exit (cooldown starts)...");
+      const tx = await wallet.exitPoolIntent(selectedPool, Amount.parse(stakeAmount || "0", selectedStakeToken));
+      setStakeStatus(`Exit intent submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      await loadStakePosition(selectedPool);
+    } catch (err) {
+      setStakeStatus(err instanceof Error ? `Unstake failed: ${err.message}` : "Unstake failed");
+    } finally {
+      setIsSubmittingStake(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!wallet || walletStatus !== "ready") {
+      setStakeStatus("Connect your wallet to withdraw");
+      return;
+    }
+    if (!selectedPool) {
+      setStakeStatus("Select a pool to withdraw from");
+      return;
+    }
+
+    const hasUnpooling = stakePosition?.unpooling && !stakePosition.unpooling.isZero?.();
+    const readyTime = stakePosition?.unpoolTime ? new Date(stakePosition.unpoolTime) : undefined;
+    if (!hasUnpooling) {
+      setStakeStatus("No pending withdrawals for this pool");
+      return;
+    }
+    if (readyTime && readyTime.getTime() > Date.now()) {
+      setStakeStatus(`Exit window opens at ${readyTime.toLocaleString()}`);
+      return;
+    }
+
+    try {
+      setIsSubmittingStake(true);
+      setStakeStatus("Finalizing withdrawal...");
+      const tx = await wallet.exitPool(selectedPool);
+      setStakeStatus(`Withdrawal submitted. Track: ${tx.explorerUrl ?? "pending"}`);
+      await refreshBalances();
+      await loadStakePosition(selectedPool);
+    } catch (err) {
+      setStakeStatus(err instanceof Error ? `Withdraw failed: ${err.message}` : "Withdraw failed");
+    } finally {
+      setIsSubmittingStake(false);
+    }
+  };
+
+  const stakePrimary = stakeAction === "stake"
+    ? { label: "Stake", onClick: handleStake }
+    : stakeAction === "unstake"
+      ? { label: "Unstake", onClick: handleUnstake }
+      : { label: "Withdraw", onClick: handleWithdraw };
+
+  const positionDisplay = (value?: any) => {
+    if (!value) return "0";
+    if (typeof value === "string") return value;
+    if (typeof value.toFormatted === "function") return value.toFormatted();
+    if (typeof value.toUnit === "function") return value.toUnit();
+    return String(value);
   };
 
   const handleSend = async () => {
@@ -229,6 +409,153 @@ export default function HomePage() {
       );
     }
 
+    if (action === "stake") {
+      return (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
+              <span className="text-sm text-slate-300">Validator</span>
+              <select
+                className="rounded-lg bg-slate-900/70 p-3 text-sm text-slate-50 outline-none"
+                value={selectedValidator?.stakerAddress ?? ""}
+                onChange={(e) => setSelectedValidatorKey(e.target.value)}
+                disabled={!validators.length || isLoadingPools}
+              >
+                {validators.map((validator) => (
+                  <option key={validator.stakerAddress} value={validator.stakerAddress}>
+                    {validator.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-400">Uses StarkZap validator presets for {network}</span>
+            </label>
+            <label className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
+              <span className="text-sm text-slate-300">Pool / Token</span>
+              <select
+                className="rounded-lg bg-slate-900/70 p-3 text-sm text-slate-50 outline-none"
+                value={selectedPool}
+                onChange={(e) => setSelectedPool(e.target.value)}
+                disabled={!pools.length || isLoadingPools}
+              >
+                {pools.map((pool) => (
+                  <option key={pool.poolContract} value={pool.poolContract}>
+                    {pool.token.symbol} · {pool.poolContract.slice(0, 8)}...{pool.poolContract.slice(-4)}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-400">Shows pools from getStakerPools()</span>
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+            {(["stake", "unstake", "withdraw"] as const).map((key) => {
+              const isActive = key === stakeAction;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setStakeAction(key)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    isActive ? "bg-white text-slate-900 shadow-md shadow-white/30" : "bg-slate-900/70 text-slate-200 hover:bg-slate-900"
+                  }`}
+                >
+                  {key.charAt(0).toUpperCase() + key.slice(1)}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-5">
+              {stakeAction !== "withdraw" && (
+                <label className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-sm text-slate-300">
+                    <span>Amount</span>
+                    <span>Balance: {selectedStakeBalance}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="flex-1 rounded-lg bg-slate-900/70 p-3 text-lg font-semibold text-slate-50 outline-none"
+                      value={stakeAmount}
+                      onChange={(e) => setStakeAmount(e.target.value)}
+                      placeholder="0.00"
+                    />
+                    <button
+                      type="button"
+                      className="rounded-full border border-white/15 px-3 py-2 text-xs text-slate-100 transition hover:border-white/40"
+                      onClick={() => setStakeAmount(selectedStakeBalance || "0")}
+                      disabled={!selectedStakeToken}
+                    >
+                      Max
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400">Staking actions use wallet.stake() or exitPoolIntent() under the hood.</p>
+                </label>
+              )}
+
+              {stakeAction === "withdraw" && (
+                <div className="rounded-lg border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-200">
+                  <p>Pending withdrawal: {positionDisplay(stakePosition?.unpooling)}</p>
+                  <p className="text-xs text-slate-400">
+                    {stakePosition?.unpoolTime ? `Ready after: ${new Date(stakePosition.unpoolTime).toLocaleString()}` : "No exit intent active."}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={refreshBalances}
+                  disabled={!address || walletStatus !== "ready"}
+                  className="rounded-full border border-white/15 px-3 py-2 text-xs text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Refresh balances
+                </button>
+                <button
+                  type="button"
+                  onClick={stakePrimary.onClick}
+                  disabled={walletStatus !== "ready" || isSubmittingStake || isLoadingPools}
+                  className="flex-1 rounded-xl bg-emerald-400 px-4 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-emerald-400/25 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {walletStatus === "ready" ? (isSubmittingStake ? `${stakePrimary.label}ing...` : stakePrimary.label) : "Connect wallet first"}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-300">Position</p>
+                <span className="rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200">
+                  {isLoadingPosition ? "Syncing" : walletStatus === "ready" ? "Live" : "Connect"}
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-slate-900/70 p-3">
+                  <p className="text-xs text-slate-400">Staked</p>
+                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.staked)}</p>
+                </div>
+                <div className="rounded-lg bg-slate-900/70 p-3">
+                  <p className="text-xs text-slate-400">Rewards</p>
+                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.rewards)}</p>
+                </div>
+                <div className="rounded-lg bg-slate-900/70 p-3">
+                  <p className="text-xs text-slate-400">Unpooling</p>
+                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.unpooling)}</p>
+                </div>
+                <div className="rounded-lg bg-slate-900/70 p-3">
+                  <p className="text-xs text-slate-400">Total</p>
+                  <p className="text-lg font-semibold text-white">{positionDisplay(stakePosition?.total)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400">
+                Delegation data comes from wallet.getPoolPosition(); withdraw requires an active exit intent and may have a cooldown.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -247,7 +574,7 @@ export default function HomePage() {
       tokenDisplay={tokenDisplay}
       totalFiat={totalFiat}
       activity={activity}
-      statusMessage={statusMessage}
+      statusMessage={action === "stake" ? stakeStatus : statusMessage}
       error={error}
     >
       {renderAction()}

@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
 import type { TokenView } from "../hooks/useZapWallet";
 
 export type WalletShellProps = {
-  current: "send" | "receive";
-  onTabChange?: (key: "send" | "receive") => void;
+  current: "send" | "receive" | "stake";
+  onTabChange?: (key: "send" | "receive" | "stake") => void;
   network: string;
   feeMode: string;
   shortAddress: string;
@@ -23,9 +22,10 @@ export type WalletShellProps = {
   children: ReactNode;
 };
 
-const tabs: { key: WalletShellProps["current"]; label: string; href: string }[] = [
-  { key: "send", label: "Send", href: "/send" },
-  { key: "receive", label: "Receive", href: "/receive" },
+const tabs: { key: WalletShellProps["current"]; label: string }[] = [
+  { key: "send", label: "Send" },
+  { key: "receive", label: "Receive" },
+  { key: "stake", label: "Stake" },
 ];
 
 export function WalletShell({
@@ -124,32 +124,18 @@ export function WalletShell({
             {tabs.map(({ key, label, href }) => {
               const isActive = current === key;
               return (
-                onTabChange ? (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => onTabChange(key)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      isActive
-                        ? "bg-white text-slate-900 shadow-md shadow-white/30"
-                        : "bg-slate-900/70 text-slate-200 hover:bg-slate-900"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ) : (
-                  <Link
-                    key={key}
-                    href={href}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      isActive
-                        ? "bg-white text-slate-900 shadow-md shadow-white/30"
-                        : "bg-slate-900/70 text-slate-200 hover:bg-slate-900"
-                    }`}
-                  >
-                    {label}
-                  </Link>
-                )
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onTabChange?.(key)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    isActive
+                      ? "bg-white text-slate-900 shadow-md shadow-white/30"
+                      : "bg-slate-900/70 text-slate-200 hover:bg-slate-900"
+                  }`}
+                >
+                  {label}
+                </button>
               );
             })}
           </div>
