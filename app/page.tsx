@@ -14,7 +14,7 @@ export default function HomePage() {
   const [action, setAction] = useState<Action>("send");
   const [sendToken, setSendToken] = useState("STRK");
   const [sendAmount, setSendAmount] = useState("");
-  const [recipient, setRecipient] = useState("0x2f1...c2b");
+  const [recipient, setRecipient] = useState("");
 
   // Staking state
   const [stakeAction, setStakeAction] = useState<"stake" | "unstake" | "withdraw">("stake");

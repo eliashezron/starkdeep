@@ -26,7 +26,12 @@ export default function SendPage() {
 
   const [sendToken, setSendToken] = useState<string>(tokenDisplay[0]?.symbol ?? "STRK");
   const [sendAmount, setSendAmount] = useState("");
-  const [recipient, setRecipient] = useState("0x2f1...c2b");
+  const [recipient, setRecipient] = useState("");
+
+  // Ensure recipient input starts empty even after Fast Refresh/dev state reuse.
+  useEffect(() => {
+    setRecipient("");
+  }, []);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [activity, setActivity] = useState<string[]>(["Received 120 STRK", "Sent 45 USDC"]);
@@ -142,6 +147,7 @@ export default function SendPage() {
             className="rounded-lg bg-gray-800 p-3 text-base text-gray-50 outline-none"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
+            autoComplete="off"
             placeholder="0x..."
           />
           <span className="text-xs text-gray-400">Paste a Starknet address or QR scan</span>
